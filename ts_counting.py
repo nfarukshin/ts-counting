@@ -1,4 +1,4 @@
-import requests
+import requests as r
 import sys
 import argparse
 import constants
@@ -10,7 +10,8 @@ def create_parser():
     parser.add_argument('-i', '--id')
     parser.add_argument('-v', '--venue')
     parser.add_argument('-t', '--team')
-    
+    parser.add_argument('-a', '--act')
+
 
     return parser
 
@@ -19,7 +20,7 @@ def make_json_from_url(tournament_id, venue):
 	if venue is not None:
 		url += f"&venue={venue}"
 
-	t = requests.get(url)
+	t = r.get(url)
 
 	return t.json()
 
@@ -55,6 +56,9 @@ def preparing_list_for_results():
 
 def make_xslx_squad_from_json(table, tournament_id):
 	rows = preparing_list_for_squads()
+	count = 0
+	result_string = ""
+
 	for j in table:
 		for player in j['teamMembers']:
 			dict = {}
@@ -67,11 +71,24 @@ def make_xslx_squad_from_json(table, tournament_id):
 			dict['G'] = player['player']['name']
 			dict['H'] = player['player']['patronymic']
 			rows.append(dict)
+
+		result_string += f"«{j['team']['name']}» (ID {j['team']['id']})"
+		if count > 0 and (count + 2) == len(table):
+			result_string += " и "
+		elif (count + 1) == len(table):
+			result_string += ""
+		elif count != len(table):
+			result_string += ", "
+		count += 1
+
 		print(f"squad of team {j['team']['id']} added.")
 	
 	filename = f'{constants.NAME_SQUAD_FILE}{tournament_id}.xlsx'
 
 	save_data_to_xlsx(rows, filename)
+
+	return result_string
+
 
 def make_xsls_results_from_json(table, tournament_id):
 	result = []
@@ -101,24 +118,35 @@ def make_xsls_results_from_json(table, tournament_id):
 
 	save_data_to_xlsx(result, filename)
 
-def make_file(tournament_id, venue, id_team):
+def make_file(tournament_id, venue_id, id_team, act):
 	teams = make_json_from_url(tournament_id, venue)
-
+	act_number = act[-3:-1]
+	act_string = f"На основании решения №{act_number} Дисциплинарной группы МАИИ ({act}) "
 	if id_team is not None:
 		for t in teams:
 			id_iterable = int(t['team']['id'])
 			if id_iterable == id_team:
 				print(f"making squad of team {id_team}")
 				rows = [t]
-				make_xslx_squad_from_json(rows,tournament_id)
+				team_string = make_xslx_squad_from_json(rows, tournament_id)
 				make_xsls_results_from_json(rows, tournament_id)
+				print(f"{act_string}{constants.COMMON_STRING_ACT}команды {team_string}.")
 				return
 		print(f"haven't find team with id {id_team}")
 
 	print(f"preparing data from venue {venue}")
-	make_xslx_squad_from_json(teams, tournament_id)
+	team_string = make_xslx_squad_from_json(teams, tournament_id)
 	make_xsls_results_from_json(teams, tournament_id)
+	venue_string = make_venue_string(venue_id)
+	print(f"{act_string}{constants.COMMON_STRING_ACT}{venue_string}{team_string}.")
 
+
+def make_venue_string(venue_id):
+	url = f"https://api.rating.chgk.net/venues/{venue_id}"
+	result = r.get(url)
+	venue_json = result.json()
+
+	return f"на площадке «{venue_json['name']}» (ID {venue_json['id']}, {venue_json['town']['name']}): составы и результаты команд "
 
 if __name__ == '__main__':
     parser = create_parser()
@@ -134,6 +162,8 @@ if __name__ == '__main__':
     	team = int(namespace.team)
     else:
     	team = None
+    if namespace.act:
+    	act = namespace.act
 
-    make_file(tournament_id, venue, team)
+    make_file(tournament_id, venue, team, act)
 
