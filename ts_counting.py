@@ -137,16 +137,21 @@ def make_file(tournament_id, venue_id, id_team, act):
 	print(f"preparing data from venue {venue}")
 	team_string = make_xslx_squad_from_json(teams, tournament_id)
 	make_xsls_results_from_json(teams, tournament_id)
-	venue_string = make_venue_string(venue_id)
+	venue_string = make_venue_string(venue_id, len(teams))
 	print(f"{act_string}{constants.COMMON_STRING_ACT}{venue_string}{team_string}.")
 
 
-def make_venue_string(venue_id):
+def make_venue_string(venue_id, count):
 	url = f"https://api.rating.chgk.net/venues/{venue_id}"
 	result = r.get(url)
 	venue_json = result.json()
 
-	return f"на площадке «{venue_json['name']}» (ID {venue_json['id']}, {venue_json['town']['name']}): составы и результаты команд "
+	result_string = f"на площадке «{venue_json['name']}» (ID {venue_json['id']}, {venue_json['town']['name']}): составы и результаты команд"
+
+	if count == 1:
+		result_string += "ы"
+
+	return result_string + " "
 
 if __name__ == '__main__':
     parser = create_parser()
